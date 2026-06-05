@@ -39,6 +39,7 @@ class DashboardScaffold extends StatelessWidget {
     final w = MediaQuery.sizeOf(context).width;
     final isDesktop = w >= 980;
     final isTablet = w >= 720;
+    final scrollPadding = isTablet ? (isDesktop ? AppSpacing.paddingXl : AppSpacing.paddingLg) : const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 0);
 
     if (!isTablet) {
       return Column(
@@ -54,7 +55,7 @@ class DashboardScaffold extends StatelessWidget {
               onExpandedChanged: onTelemetryExpandedChanged,
             ),
           ),
-          Expanded(child: child),
+          Expanded(child: _DashboardScrollable(padding: scrollPadding, child: child)),
           _BottomNav(module: module, onSelected: onModuleSelected),
         ],
       );
@@ -78,15 +79,48 @@ class DashboardScaffold extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: Padding(
-                  padding: isDesktop ? AppSpacing.paddingXl : AppSpacing.paddingLg,
-                  child: child,
-                ),
+                child: _DashboardScrollable(padding: scrollPadding, child: child),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DashboardScrollable extends StatefulWidget {
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+  const _DashboardScrollable({required this.padding, required this.child});
+
+  @override
+  State<_DashboardScrollable> createState() => _DashboardScrollableState();
+}
+
+class _DashboardScrollableState extends State<_DashboardScrollable> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.sizeOf(context).width;
+    final thumb = w >= 980;
+
+    return Scrollbar(
+      controller: _controller,
+      thumbVisibility: thumb,
+      child: SingleChildScrollView(
+        controller: _controller,
+        padding: widget.padding,
+        physics: const BouncingScrollPhysics(),
+        child: widget.child,
+      ),
     );
   }
 }
