@@ -87,14 +87,23 @@ class _ProtocolGrid extends StatelessWidget {
       ),
     ];
 
-    return GridView.count(
-      crossAxisCount: cols,
-      mainAxisSpacing: AppSpacing.lg,
-      crossAxisSpacing: AppSpacing.lg,
-      childAspectRatio: cols == 1 ? 1.05 : 1.15,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      children: items,
+    // A fixed-aspect GridView forces a predetermined height per card; when
+    // content exceeds that height, Flutter correctly signals an overflow.
+    // This Wrap-based grid allows each card to take the height it needs.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalW = constraints.maxWidth;
+        final gaps = max(0, cols - 1);
+        final itemW = (totalW - (gaps * AppSpacing.lg)) / cols;
+
+        return Wrap(
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.lg,
+          children: items
+              .map((w) => SizedBox(width: itemW, child: w))
+              .toList(growable: false),
+        );
+      },
     );
   }
 }
@@ -117,7 +126,7 @@ class _FrameworkComponentList extends StatelessWidget {
           runSpacing: AppSpacing.sm,
           children: components.map((c) => TelemetryPill(label: c, tone: tone)).toList(growable: false),
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           'Deterministic mapping: components → primitives → constraints → observable outputs',
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, fontFamily: AppFonts.telemetry),
@@ -163,7 +172,7 @@ class _ProtocolCard extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(subtitle, style: t.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, height: 1.4)),
               const SizedBox(height: AppSpacing.lg),
-              Expanded(child: child),
+              child,
             ],
           ),
         ),
@@ -207,7 +216,7 @@ class _MetricsBreakdown extends StatelessWidget {
             TelemetryPill(label: 'Ratios', tone: TelemetryTone.human),
           ],
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           'Formula: Outcome = (Magnitude × Efficiency) / (Threshold × Risk)',
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, fontFamily: AppFonts.telemetry),
@@ -305,7 +314,7 @@ class _GemsgMatrix extends StatelessWidget {
             ),
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           'Matrix: drivers × constraints → roadmap invariants',
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, fontFamily: AppFonts.telemetry),
@@ -343,7 +352,7 @@ class _BiosMap extends StatelessWidget {
           right: 'policy + verification',
           tone: TelemetryTone.human,
         ),
-        const Spacer(),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           'BIOS premise: same rules, different substrates.',
           style: t.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, height: 1.5),
