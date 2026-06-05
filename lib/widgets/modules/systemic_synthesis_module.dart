@@ -17,6 +17,7 @@ class SystemicSynthesisModule extends StatelessWidget {
     final profile = context.watch<SystemsProfile>();
     final w = MediaQuery.sizeOf(context).width;
     final cols = w >= 980 ? 2 : 1;
+    final isNarrow = w < 720;
 
     return Align(
       alignment: Alignment.topCenter,
@@ -43,18 +44,28 @@ class SystemicSynthesisModule extends StatelessWidget {
               style: t.textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary, height: 1.55),
             ),
             const SizedBox(height: AppSpacing.xl),
-            GridView.count(
-              crossAxisCount: cols,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: AppSpacing.lg,
-              crossAxisSpacing: AppSpacing.lg,
-              childAspectRatio: cols == 1 ? 1.15 : 1.55,
-              children: [
-                _SdlcPipelineCard(softwareMethodology: profile.sdlcParadigms.softwareMethodology),
-                _HardwareAugmentedCard(hardwareAugmentedSdlc: profile.sdlcParadigms.hardwareAugmentedSdlc),
-              ],
-            ),
+            if (cols == 1)
+              Column(
+                children: [
+                  _SdlcPipelineCard(softwareMethodology: profile.sdlcParadigms.softwareMethodology, compact: isNarrow),
+                  const SizedBox(height: AppSpacing.lg),
+                  _HardwareAugmentedCard(hardwareAugmentedSdlc: profile.sdlcParadigms.hardwareAugmentedSdlc, compact: isNarrow),
+                ],
+              )
+            else
+              GridView.count(
+                crossAxisCount: cols,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: AppSpacing.lg,
+                crossAxisSpacing: AppSpacing.lg,
+                // Wide layouts can safely constrain height. Narrow layouts use Column above.
+                childAspectRatio: 1.55,
+                children: [
+                  _SdlcPipelineCard(softwareMethodology: profile.sdlcParadigms.softwareMethodology, compact: false),
+                  _HardwareAugmentedCard(hardwareAugmentedSdlc: profile.sdlcParadigms.hardwareAugmentedSdlc, compact: false),
+                ],
+              ),
           ],
         ),
       ),
@@ -64,11 +75,13 @@ class SystemicSynthesisModule extends StatelessWidget {
 
 class _SdlcPipelineCard extends StatelessWidget {
   final String softwareMethodology;
-  const _SdlcPipelineCard({required this.softwareMethodology});
+  final bool compact;
+  const _SdlcPipelineCard({required this.softwareMethodology, required this.compact});
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final chartH = compact ? 120.0 : 150.0;
     return NeoPanel(
       padding: AppSpacing.paddingLg,
       child: Column(
@@ -82,20 +95,22 @@ class _SdlcPipelineCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          SizedBox(height: 150, child: CustomPaint(painter: _PipelinePainter(), child: const SizedBox.expand())),
+          SizedBox(height: chartH, child: CustomPaint(painter: _PipelinePainter(), child: const SizedBox.expand())),
           const SizedBox(height: AppSpacing.md),
           Text(
             'Discovery → Spec → Design → Build → Test → Release → Observe',
-            style: t.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, fontFamily: AppFonts.telemetry),
+            maxLines: compact ? 2 : 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, fontFamily: AppFonts.telemetry, height: 1.35),
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             softwareMethodology,
-            maxLines: 4,
+            maxLines: compact ? 6 : 4,
             overflow: TextOverflow.ellipsis,
             style: t.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary, height: 1.45),
           ),
-          const Spacer(),
+          const SizedBox(height: AppSpacing.lg),
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,
@@ -155,11 +170,13 @@ class _PipelinePainter extends CustomPainter {
 
 class _HardwareAugmentedCard extends StatelessWidget {
   final String hardwareAugmentedSdlc;
-  const _HardwareAugmentedCard({required this.hardwareAugmentedSdlc});
+  final bool compact;
+  const _HardwareAugmentedCard({required this.hardwareAugmentedSdlc, required this.compact});
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final chartH = compact ? 120.0 : 150.0;
     return NeoPanel(
       padding: AppSpacing.paddingLg,
       child: Column(
@@ -173,13 +190,15 @@ class _HardwareAugmentedCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.lg),
-          SizedBox(height: 150, child: CustomPaint(painter: _JoineryPainter(), child: const SizedBox.expand())),
+          SizedBox(height: chartH, child: CustomPaint(painter: _JoineryPainter(), child: const SizedBox.expand())),
           const SizedBox(height: AppSpacing.md),
           Text(
             hardwareAugmentedSdlc,
+            maxLines: compact ? 7 : null,
+            overflow: compact ? TextOverflow.ellipsis : TextOverflow.visible,
             style: t.textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary, height: 1.55),
           ),
-          const Spacer(),
+          const SizedBox(height: AppSpacing.lg),
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.sm,

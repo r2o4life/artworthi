@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb, debugPrint;
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:go_router/go_router.dart';
@@ -174,6 +174,7 @@ class _LeftNavRail extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               _HomeIngressMark(
                 style: t.textTheme.titleMedium?.copyWith(color: AppColors.textPrimary, letterSpacing: 2),
+                onGoHome: () => onSelected(PortfolioModule.manifesto),
               ),
               const SizedBox(height: AppSpacing.lg),
               _NavIcon(
@@ -231,7 +232,9 @@ class _LeftNavRail extends StatelessWidget {
 
 class _HomeIngressMark extends StatefulWidget {
   final TextStyle? style;
-  const _HomeIngressMark({this.style});
+  final VoidCallback onGoHome;
+
+  const _HomeIngressMark({this.style, required this.onGoHome});
 
   @override
   State<_HomeIngressMark> createState() => _HomeIngressMarkState();
@@ -268,7 +271,18 @@ class _HomeIngressMarkState extends State<_HomeIngressMark> {
 
     void goHome() {
       context.read<AppController>().logInteraction(type: 'INGRESS', channel: 'chrome', payload: {'target': 'home'});
-      context.go(AppRoutes.home);
+      // The primary “tabs” in this app are stateful modules on the home route.
+      // So even if we are already at AppRoutes.home, we still need to reset the
+      // selected module to the landing (Core/Manifesto).
+      try {
+        widget.onGoHome();
+      } catch (e) {
+        debugPrint('Home ingress onGoHome failed: $e');
+      }
+
+      if (GoRouterState.of(context).uri.toString() != AppRoutes.home) {
+        context.go(AppRoutes.home);
+      }
     }
 
     final button = InkWell(
@@ -854,30 +868,65 @@ class _TelemetryTopBar extends StatelessWidget {
           constraints: BoxConstraints(minHeight: expanded ? 120 : 56),
           child: Column(
             children: [
-              Row(
-                children: [
-                  Text('telemetry', style: t.textTheme.labelLarge?.copyWith(color: AppColors.textSecondary, letterSpacing: 1.4)),
-                  const SizedBox(width: AppSpacing.sm),
-                  TelemetryPill(
-                    label: mode == PresentationMode.editorial ? 'editorial view' : 'systems view',
-                    tone: mode == PresentationMode.editorial ? TelemetryTone.human : TelemetryTone.active,
-                    icon: mode == PresentationMode.editorial ? Icons.subject_rounded : Icons.layers_rounded,
-                    onTap: onToggleMode,
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  _XrayTelemetryPill(enabled: xrayEnabled, onTap: onToggleXray),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => onExpandedChanged(!expanded),
-                    tooltip: expanded ? 'Collapse telemetry' : 'Expand telemetry',
-                    style: IconButton.styleFrom(splashFactory: NoSplash.splashFactory, overlayColor: Colors.transparent),
-                    icon: Icon(
-                      expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                      color: AppColors.textSecondary,
+              if (isCompact)
+                Column(
+                  children: [
+                    Row(
+                      children: [
+                        Text('telemetry', style: t.textTheme.labelLarge?.copyWith(color: AppColors.textSecondary, letterSpacing: 1.4)),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => onExpandedChanged(!expanded),
+                          tooltip: expanded ? 'Collapse telemetry' : 'Expand telemetry',
+                          style: IconButton.styleFrom(splashFactory: NoSplash.splashFactory, overlayColor: Colors.transparent),
+                          icon: Icon(expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: AppColors.textSecondary),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          TelemetryPill(
+                            label: mode == PresentationMode.editorial ? 'editorial view' : 'systems view',
+                            tone: mode == PresentationMode.editorial ? TelemetryTone.human : TelemetryTone.active,
+                            icon: mode == PresentationMode.editorial ? Icons.subject_rounded : Icons.layers_rounded,
+                            onTap: onToggleMode,
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          _XrayTelemetryPill(enabled: xrayEnabled, onTap: onToggleXray),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Text('telemetry', style: t.textTheme.labelLarge?.copyWith(color: AppColors.textSecondary, letterSpacing: 1.4)),
+                    const SizedBox(width: AppSpacing.sm),
+                    TelemetryPill(
+                      label: mode == PresentationMode.editorial ? 'editorial view' : 'systems view',
+                      tone: mode == PresentationMode.editorial ? TelemetryTone.human : TelemetryTone.active,
+                      icon: mode == PresentationMode.editorial ? Icons.subject_rounded : Icons.layers_rounded,
+                      onTap: onToggleMode,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    _XrayTelemetryPill(enabled: xrayEnabled, onTap: onToggleXray),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => onExpandedChanged(!expanded),
+                      tooltip: expanded ? 'Collapse telemetry' : 'Expand telemetry',
+                      style: IconButton.styleFrom(splashFactory: NoSplash.splashFactory, overlayColor: Colors.transparent),
+                      icon: Icon(
+                        expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               AnimatedCrossFade(
                 duration: const Duration(milliseconds: 220),
                 crossFadeState: expanded ? CrossFadeState.showFirst : CrossFadeState.showSecond,

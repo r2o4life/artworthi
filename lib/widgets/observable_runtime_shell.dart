@@ -126,6 +126,17 @@ class _ObservableRuntimeShellState extends State<ObservableRuntimeShell> {
                       if (s.xrayEnabled) const Positioned.fill(child: XRayOverlay()),
                        if (s.xrayEnabled)
                          Positioned(
+                           right: AppSpacing.lg,
+                           top: MediaQuery.paddingOf(overlayContext).top + AppSpacing.lg,
+                           child: _XrayExitBeacon(
+                             onExit: () {
+                               c.dispatch(const ToggleXRay());
+                               c.logInteraction(type: 'UI_TOGGLE', payload: {'target': 'xray', 'enabled': false, 'source': 'exit_beacon'});
+                             },
+                           ),
+                         ),
+                       if (s.xrayEnabled)
+                         Positioned(
                            left: AppSpacing.lg,
                            top: MediaQuery.paddingOf(overlayContext).top + AppSpacing.lg,
                             bottom: AppSpacing.lg,
@@ -196,6 +207,77 @@ class _ObservableRuntimeShellState extends State<ObservableRuntimeShell> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _XrayExitBeacon extends StatefulWidget {
+  final VoidCallback onExit;
+  const _XrayExitBeacon({required this.onExit});
+
+  @override
+  State<_XrayExitBeacon> createState() => _XrayExitBeaconState();
+}
+
+class _XrayExitBeaconState extends State<_XrayExitBeacon> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final v = Curves.easeInOutCubic.transform(_c.value);
+        final borderA = (0.55 + (v * 0.35)).clamp(0.0, 1.0);
+        final glowA = (0.22 + (v * 0.18)).clamp(0.0, 1.0);
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onExit,
+            child: NeoPanel(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.accentCyan.withValues(alpha: borderA), width: 1.4 + (v * 0.8)),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.accentCyan.withValues(alpha: glowA), blurRadius: 22 + (v * 12), spreadRadius: 0),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.visibility_rounded, size: 16, color: AppColors.accentCyan),
+                      const SizedBox(width: 8),
+                      Text('XRAY ON', style: t.textTheme.labelMedium?.copyWith(color: AppColors.textPrimary, fontFamily: AppFonts.telemetry, letterSpacing: 1.1)),
+                      const SizedBox(width: 10),
+                      Text('tap to exit', style: t.textTheme.labelSmall?.copyWith(color: AppColors.textSecondary, fontFamily: AppFonts.telemetry)),
+                      const SizedBox(width: 10),
+                      Icon(Icons.close_rounded, size: 18, color: AppColors.textPrimary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

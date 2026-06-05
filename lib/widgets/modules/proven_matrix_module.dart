@@ -21,6 +21,7 @@ class ProvenMatrixModule extends StatelessWidget {
     final profile = context.watch<SystemsProfile>();
     final w = MediaQuery.sizeOf(context).width;
     final cols = w >= 1100 ? 2 : 1;
+    final isNarrow = w < 720;
 
     return Align(
       alignment: Alignment.topCenter,
@@ -46,18 +47,28 @@ class ProvenMatrixModule extends StatelessWidget {
               style: t.textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary, height: 1.55),
             ),
             const SizedBox(height: AppSpacing.xl),
-            GridView.builder(
-              itemCount: projects.length,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: cols,
-                crossAxisSpacing: AppSpacing.lg,
-                mainAxisSpacing: AppSpacing.lg,
-                childAspectRatio: cols == 1 ? 1.22 : 1.65,
+            if (cols == 1)
+              Column(
+                children: [
+                  for (var i = 0; i < projects.length; i++) ...[
+                    _ProjectCard(project: projects[i], compact: isNarrow),
+                    if (i != projects.length - 1) const SizedBox(height: AppSpacing.lg),
+                  ],
+                ],
+              )
+            else
+              GridView.builder(
+                itemCount: projects.length,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: AppSpacing.lg,
+                  mainAxisSpacing: AppSpacing.lg,
+                  childAspectRatio: 1.65,
+                ),
+                itemBuilder: (context, i) => _ProjectCard(project: projects[i], compact: false),
               ),
-              itemBuilder: (context, i) => _ProjectCard(project: projects[i]),
-            ),
           ],
         ),
       ),
@@ -67,7 +78,8 @@ class ProvenMatrixModule extends StatelessWidget {
 
 class _ProjectCard extends StatelessWidget {
   final PortfolioProject project;
-  const _ProjectCard({required this.project});
+  final bool compact;
+  const _ProjectCard({required this.project, required this.compact});
 
   @override
   Widget build(BuildContext context) {
@@ -112,11 +124,11 @@ class _ProjectCard extends StatelessWidget {
                         .map((p) => TelemetryPill(label: p, tone: TelemetryTone.validate))
                         .toList(growable: false),
                   ),
-                  const Spacer(),
+                  const SizedBox(height: AppSpacing.lg),
                   Row(
                     children: [
-                      const TelemetryPill(label: 'state machine', tone: TelemetryTone.active),
-                      const SizedBox(width: AppSpacing.sm),
+                      if (!compact) const TelemetryPill(label: 'state machine', tone: TelemetryTone.active),
+                      if (!compact) const SizedBox(width: AppSpacing.sm),
                       TelemetryPill(label: project.domain.split('/').first.trim().toLowerCase(), tone: TelemetryTone.human),
                     ],
                   ),
