@@ -150,6 +150,9 @@ class _SideTelemetry extends StatelessWidget {
   Widget build(BuildContext context) {
     final profile = context.watch<SystemsProfile>();
     final t = Theme.of(context);
+    final entity = profile.corporateEntities.parentEntity.trim();
+    final holding = profile.corporateEntities.holdingCompany.trim();
+    final isConsolidated = entity.isNotEmpty && entity == holding;
     return NeoPanel(
       padding: AppSpacing.paddingLg,
       child: Column(
@@ -157,14 +160,29 @@ class _SideTelemetry extends StatelessWidget {
         children: [
           Text('Landing matrix', style: t.textTheme.titleMedium?.copyWith(color: AppColors.textPrimary)),
           const SizedBox(height: AppSpacing.md),
-          _KeyValue(label: 'studio', value: profile.corporateEntities.designStudio),
-          _KeyValue(label: 'entity', value: profile.corporateEntities.parentEntity),
-          _KeyValue(label: 'holding', value: profile.corporateEntities.holdingCompany),
+          _KeyValue.link(
+            label: 'studio',
+            value: profile.corporateEntities.designStudio,
+            uri: Uri.parse(profile.corporateEntities.designStudioUrl),
+            egressKind: 'url',
+          ),
+          if (isConsolidated)
+            _KeyValue(label: 'entity/holding', value: entity)
+          else ...[
+            _KeyValue(label: 'entity', value: entity),
+            _KeyValue(label: 'holding', value: holding),
+          ],
           _KeyValue.link(
             label: 'email',
             value: profile.contactAndSocials.email,
             uri: Uri(scheme: 'mailto', path: profile.contactAndSocials.email),
             egressKind: 'mailto',
+          ),
+          _KeyValue.link(
+            label: 'linkedin',
+            value: profile.contactAndSocials.linkedin,
+            uri: Uri.parse(profile.contactAndSocials.linkedin),
+            egressKind: 'url',
           ),
           _KeyValue.link(
             label: 'digital HQ',

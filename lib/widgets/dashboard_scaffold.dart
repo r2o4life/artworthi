@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:portfoliox/nav.dart';
 import 'package:portfoliox/core/models/framework_metric.dart';
 import 'package:portfoliox/core/models/systems_profile.dart';
 import 'package:portfoliox/core/models/system_log.dart';
@@ -169,7 +172,9 @@ class _LeftNavRail extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: AppSpacing.sm),
-              Text('PX', style: t.textTheme.titleMedium?.copyWith(color: AppColors.textPrimary, letterSpacing: 2)),
+              _HomeIngressMark(
+                style: t.textTheme.titleMedium?.copyWith(color: AppColors.textPrimary, letterSpacing: 2),
+              ),
               const SizedBox(height: AppSpacing.lg),
               _NavIcon(
                 icon: Icons.blur_on_rounded,
@@ -219,6 +224,134 @@ class _LeftNavRail extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _HomeIngressMark extends StatefulWidget {
+  final TextStyle? style;
+  const _HomeIngressMark({this.style});
+
+  @override
+  State<_HomeIngressMark> createState() => _HomeIngressMarkState();
+}
+
+class _HomeIngressMarkState extends State<_HomeIngressMark> {
+  bool _hovering = false;
+
+  bool _supportsHoverByPlatform() {
+    if (kIsWeb) return true;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.macOS:
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return true;
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final supportsHover = _supportsHoverByPlatform();
+
+    final labelStyle = (widget.style ?? t.textTheme.titleMedium)?.copyWith(fontFamily: AppFonts.telemetry);
+    final homeTextStyle = t.textTheme.labelSmall?.copyWith(
+      color: AppColors.textSecondary,
+      fontFamily: AppFonts.telemetry,
+      letterSpacing: 1.2,
+    );
+
+    void goHome() {
+      context.read<AppController>().logInteraction(type: 'INGRESS', channel: 'chrome', payload: {'target': 'home'});
+      context.go(AppRoutes.home);
+    }
+
+    final button = InkWell(
+      onTap: goHome,
+      hoverColor: Colors.transparent,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        padding: supportsHover ? const EdgeInsets.all(12) : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: _hovering ? AppColors.panelFillStrong : Colors.transparent,
+          borderRadius: BorderRadius.circular(supportsHover ? 16 : 999),
+          border: Border.all(
+            color: _hovering ? AppColors.accentCyan.withValues(alpha: 0.45) : AppColors.panelStroke,
+            width: 1,
+          ),
+        ),
+        child: supportsHover
+            ? Text('A', style: labelStyle)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('home', style: homeTextStyle),
+                  const SizedBox(width: 8),
+                  Icon(Icons.north_west_rounded, size: 16, color: AppColors.textSecondary),
+                ],
+              ),
+      ),
+    );
+
+    if (!supportsHover) return button;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          button,
+          Positioned(
+            left: 58,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOutCubic,
+                opacity: _hovering ? 1 : 0,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  offset: _hovering ? Offset.zero : const Offset(-0.06, 0),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.panelFillStrong.withValues(alpha: 0.96),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.30), width: 1),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.accentCyan.withValues(alpha: 0.10),
+                          blurRadius: 18,
+                          spreadRadius: 0.5,
+                        ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.home_rounded, size: 14, color: AppColors.accentCyan),
+                          const SizedBox(width: 8),
+                          Text('home', style: t.textTheme.labelSmall?.copyWith(color: AppColors.textPrimary, fontFamily: AppFonts.telemetry, letterSpacing: 0.6)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

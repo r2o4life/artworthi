@@ -38,11 +38,13 @@ class ProfileIdentity {
 
 class CorporateEntities {
   final String designStudio;
+  final String designStudioUrl;
   final String parentEntity;
   final String holdingCompany;
 
   const CorporateEntities({
     required this.designStudio,
+    required this.designStudioUrl,
     required this.parentEntity,
     required this.holdingCompany,
   });
@@ -135,14 +137,15 @@ class SystemsProfileSeed {
       'Senior Product Designer (Enterprise B2B SaaS & API-First Ecosystems)',
     ],
     corporateEntities: CorporateEntities(
-      designStudio: 'Form & Flow Design Studio',
+      designStudio: 'Olympia Lacey Design',
+      designStudioUrl: 'https://share.google/8oyNDBlwIDaoKaT57',
       parentEntity: 'Parallel Paradigm LLC',
-      holdingCompany: 'Paradigm Foundry',
+      holdingCompany: 'Parallel Paradigm LLC',
     ),
     contactAndSocials: ContactAndSocials(
       email: 'arrgarci7@gmail.com',
       phone: '+1 (360) XXX-XXXX',
-      linkedin: 'https://www.linkedin.com/in/your-profile-url',
+      linkedin: 'https://www.linkedin.com/in/artworthi/',
       github: 'https://github.com/your-username',
       digitalHq: 'https://parallelparadigm.org/',
     ),
