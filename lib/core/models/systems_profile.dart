@@ -144,7 +144,7 @@ class SystemsProfileSeed {
       phone: '+1 (360) XXX-XXXX',
       linkedin: 'https://www.linkedin.com/in/your-profile-url',
       github: 'https://github.com/your-username',
-      digitalHq: 'https://formandflow.design',
+      digitalHq: 'https://parallelparadigm.org/',
     ),
     technicalArchitectureStack: TechnicalArchitectureStack(
       frontendFramework: 'Flutter',
