@@ -29,12 +29,17 @@ class TelemetryPill extends StatelessWidget {
           Icon(icon, size: 14, color: c),
           const SizedBox(width: 6),
         ],
-        Text(
-          label,
-          style: t.textTheme.labelSmall?.copyWith(
-            color: c,
-            letterSpacing: 0.6,
-            fontFamily: AppFonts.telemetry,
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            softWrap: false,
+            style: t.textTheme.labelSmall?.copyWith(
+              color: c,
+              letterSpacing: 0.6,
+              fontFamily: AppFonts.telemetry,
+            ),
           ),
         ),
       ],

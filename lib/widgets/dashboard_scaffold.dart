@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:portfoliox/core/models/framework_metric.dart';
+import 'package:portfoliox/core/models/systems_profile.dart';
 import 'package:portfoliox/core/models/system_log.dart';
+import 'package:portfoliox/core/state/app_controller.dart';
 import 'package:portfoliox/core/state/app_state.dart';
 import 'package:portfoliox/theme.dart';
 import 'package:portfoliox/widgets/neo/neo_panel.dart';
@@ -63,7 +68,17 @@ class DashboardScaffold extends StatelessWidget {
 
     return Row(
       children: [
-        RuntimeProbe(id: 'chrome/left_nav', child: _LeftNavRail(module: module, onSelected: onModuleSelected)),
+        RuntimeProbe(
+          id: 'chrome/left_nav',
+          child: _LeftNavRail(
+            module: module,
+            mode: mode,
+            xrayEnabled: xrayEnabled,
+            onSelected: onModuleSelected,
+            onToggleMode: onToggleMode,
+            onToggleXray: onToggleXray,
+          ),
+        ),
         Expanded(
           child: Column(
             children: [
@@ -127,12 +142,24 @@ class _DashboardScrollableState extends State<_DashboardScrollable> {
 
 class _LeftNavRail extends StatelessWidget {
   final PortfolioModule module;
+  final PresentationMode mode;
+  final bool xrayEnabled;
   final ValueChanged<PortfolioModule> onSelected;
-  const _LeftNavRail({required this.module, required this.onSelected});
+  final VoidCallback onToggleMode;
+  final VoidCallback onToggleXray;
+  const _LeftNavRail({
+    required this.module,
+    required this.mode,
+    required this.xrayEnabled,
+    required this.onSelected,
+    required this.onToggleMode,
+    required this.onToggleXray,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final profile = context.watch<SystemsProfile>();
     return SizedBox(
       width: 104,
       child: Padding(
@@ -168,10 +195,26 @@ class _LeftNavRail extends StatelessWidget {
                 selected: module == PortfolioModule.systemicSynthesis,
                 onTap: () => onSelected(PortfolioModule.systemicSynthesis),
               ),
+              const SizedBox(height: AppSpacing.md),
+              _UtilityCluster(
+                mode: mode,
+                xrayEnabled: xrayEnabled,
+                email: profile.contactAndSocials.email,
+                digitalHq: profile.contactAndSocials.digitalHq,
+                onToggleMode: onToggleMode,
+                onToggleXray: onToggleXray,
+              ),
               const Spacer(),
-              const Padding(
-                padding: EdgeInsets.only(bottom: AppSpacing.md),
-                child: TelemetryPill(label: 'deterministic', tone: TelemetryTone.validate),
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 84),
+                    child: const TelemetryPill(label: 'deterministic', tone: TelemetryTone.validate),
+                  ),
+                ),
               ),
             ],
           ),
@@ -179,6 +222,425 @@ class _LeftNavRail extends StatelessWidget {
       ),
     );
   }
+}
+
+class _UtilityCluster extends StatelessWidget {
+  final PresentationMode mode;
+  final bool xrayEnabled;
+  final String email;
+  final String digitalHq;
+  final VoidCallback onToggleMode;
+  final VoidCallback onToggleXray;
+
+  const _UtilityCluster({
+    required this.mode,
+    required this.xrayEnabled,
+    required this.email,
+    required this.digitalHq,
+    required this.onToggleMode,
+    required this.onToggleXray,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          _UtilityIcon(
+            icon: mode == PresentationMode.editorial ? Icons.subject_rounded : Icons.layers_rounded,
+            label: mode == PresentationMode.editorial ? 'Editorial' : 'Systems',
+            selected: true,
+            onTap: () {
+              context.read<AppController>().logInteraction(
+                type: 'UTILITY_TOGGLE',
+                channel: 'chrome',
+                payload: {'kind': 'mode', 'next': mode == PresentationMode.editorial ? 'systems' : 'editorial'},
+              );
+              onToggleMode();
+            },
+          ),
+          _XrayUtilityIcon(
+            enabled: xrayEnabled,
+            onToggle: () {
+              context.read<AppController>().logInteraction(
+                type: 'UTILITY_TOGGLE',
+                channel: 'chrome',
+                payload: {'kind': 'xray', 'next': (!xrayEnabled).toString()},
+              );
+              onToggleXray();
+            },
+          ),
+          _UtilityIcon(
+            icon: Icons.public_rounded,
+            label: 'HQ',
+            onTap: () => _launchEgress(
+              context,
+              label: 'digital_hq',
+              kind: 'url',
+              uri: Uri.parse(digitalHq),
+            ),
+          ),
+          _UtilityIcon(
+            icon: Icons.mail_rounded,
+            label: 'Email',
+            onTap: () => _launchEgress(
+              context,
+              label: 'email',
+              kind: 'mailto',
+              uri: Uri(scheme: 'mailto', path: email),
+            ),
+            onLongPress: () async {
+              try {
+                await Clipboard.setData(ClipboardData(text: email));
+                context.read<AppController>().logInteraction(
+                  type: 'UTILITY_COPY',
+                  channel: 'chrome',
+                  payload: {'kind': 'email', 'value': email},
+                );
+              } catch (e) {
+                debugPrint('Failed to copy email: $e');
+                context.read<AppController>().logInteraction(
+                  type: 'UTILITY_COPY_ERROR',
+                  channel: 'chrome',
+                  payload: {'kind': 'email', 'error': e.toString()},
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _launchEgress(BuildContext context, {required String label, required String kind, required Uri uri}) async {
+    context.read<AppController>().logInteraction(
+      type: 'EGRESS',
+      channel: 'egress',
+      payload: {'kind': kind, 'label': label, 'uri': uri.toString()},
+    );
+
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok) {
+        context.read<AppController>().logInteraction(
+          type: 'EGRESS_FAILED',
+          channel: 'egress',
+          payload: {'label': label, 'uri': uri.toString()},
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to launch egress link ($label): $e');
+      context.read<AppController>().logInteraction(
+        type: 'EGRESS_ERROR',
+        channel: 'egress',
+        payload: {'label': label, 'uri': uri.toString(), 'error': e.toString()},
+      );
+    }
+  }
+}
+
+class _UtilityIcon extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _UtilityIcon({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final color = selected ? AppColors.accentCyan : AppColors.textSecondary;
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        hoverColor: Colors.transparent,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.panelFillStrong : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? AppColors.accentCyan.withValues(alpha: 0.35) : AppColors.panelStroke, width: 1),
+          ),
+          child: Icon(icon, color: color, size: 18, semanticLabel: label),
+        ),
+      ),
+    );
+  }
+}
+
+class _XrayUtilityIcon extends StatefulWidget {
+  final bool enabled;
+  final VoidCallback onToggle;
+  const _XrayUtilityIcon({required this.enabled, required this.onToggle});
+
+  @override
+  State<_XrayUtilityIcon> createState() => _XrayUtilityIconState();
+}
+
+class _XrayUtilityIconState extends State<_XrayUtilityIcon> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant _XrayUtilityIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled) _syncAnimation();
+  }
+
+  void _syncAnimation() {
+    if (widget.enabled) {
+      if (_pulse.isAnimating) return;
+      _pulse
+        ..stop()
+        ..value = 0;
+      // Perpetual “XRAY active” render loop: visible even in dense UI.
+      _pulse.repeat(reverse: true);
+    } else {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.enabled;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AnimatedBuilder(
+          animation: _pulse,
+          builder: (context, child) {
+            if (!enabled) return child!;
+
+            // NOTE: The old implementation relied heavily on *outer* glow (shadows)
+            // which can get visually lost (or clipped) inside dense panels.
+            // This version pushes the signal *into* the button (animated fill +
+            // border) while still retaining the dashed ring.
+            final t = Curves.easeInOutCubic.transform(_pulse.value);
+            final ringAlpha = (0.55 + (t * 0.35)).clamp(0.0, 1.0);
+            final borderAlpha = (0.55 + (t * 0.40)).clamp(0.0, 1.0);
+            final fillAlpha = (0.08 + (t * 0.10)).clamp(0.0, 1.0);
+            final borderWidth = 1.3 + (t * 1.0);
+
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Transform.scale(
+                  scale: 1 + (t * 0.06),
+                  child: CustomPaint(
+                    painter: _DashedRingPainter(
+                      color: AppColors.accentCyan.withValues(alpha: ringAlpha),
+                      rotationT: t,
+                    ),
+                    child: const SizedBox(width: 52, height: 52),
+                  ),
+                ),
+                _XrayActiveButton(
+                  t: t,
+                  borderAlpha: borderAlpha,
+                  fillAlpha: fillAlpha,
+                  borderWidth: borderWidth,
+                  onTap: widget.onToggle,
+                ),
+              ],
+            );
+          },
+          child: _UtilityIcon(
+            icon: Icons.grid_on_rounded,
+            label: enabled ? 'XRAY on' : 'XRAY off',
+            selected: enabled,
+            onTap: widget.onToggle,
+          ),
+        ),
+        Positioned(
+          left: -26,
+          right: -26,
+          top: -34,
+          child: IgnorePointer(
+            ignoring: true,
+            child: AnimatedBuilder(
+              animation: _pulse,
+              builder: (context, _) {
+                final t = Curves.easeInOutCubic.transform(_pulse.value);
+                final y = enabled ? (0.0 - (t * 2.5)) : 6.0;
+                final opacity = enabled ? (0.78 + (t * 0.22)) : 0.0;
+                return Transform.translate(
+                  offset: Offset(0, y),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOutCubic,
+                    opacity: opacity,
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.panelFillStrong.withValues(alpha: 0.94),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.40 + (t * 0.20)), width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.accentCyan.withValues(alpha: 0.14 + (t * 0.08)),
+                              blurRadius: 14,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: AppColors.accentCyan.withValues(alpha: 0.75 + (t * 0.25)),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'XRAY active • tap to exit',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontFamily: AppFonts.telemetry,
+                                      letterSpacing: 0.3,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _XrayActiveButton extends StatelessWidget {
+  final double t;
+  final double borderAlpha;
+  final double fillAlpha;
+  final double borderWidth;
+  final VoidCallback onTap;
+
+  const _XrayActiveButton({
+    required this.t,
+    required this.borderAlpha,
+    required this.fillAlpha,
+    required this.borderWidth,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = AppColors.accentCyan.withValues(alpha: fillAlpha);
+    final border = AppColors.accentCyan.withValues(alpha: borderAlpha);
+    final iconColor = Color.lerp(AppColors.textPrimary, AppColors.accentCyan, 0.55 + (t * 0.25))!;
+
+    return Tooltip(
+      message: 'XRAY',
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: Colors.transparent,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Color.lerp(AppColors.panelFillStrong, fill, 0.9)!,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: border, width: borderWidth),
+            boxShadow: [
+              // Keep the glow mostly *inside* the button silhouette.
+              BoxShadow(
+                color: AppColors.accentCyan.withValues(alpha: 0.18 + (t * 0.18)),
+                blurRadius: 10 + (t * 10),
+                spreadRadius: 0,
+              ),
+            ],
+          ),
+          child: Icon(Icons.grid_on_rounded, color: iconColor, size: 18, semanticLabel: 'XRAY on'),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedRingPainter extends CustomPainter {
+  final Color color;
+  final double rotationT;
+  const _DashedRingPainter({required this.color, required this.rotationT});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.shortestSide / 2) - 2;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+
+    // Draw a dashed circle with a gentle rotation to read as “live”.
+    const dashCount = 20;
+    final dashAngle = (2 * 3.141592653589793) / dashCount;
+    final gap = dashAngle * 0.45;
+    final sweep = dashAngle - gap;
+    final rotation = rotationT * (2 * 3.141592653589793);
+
+    for (var i = 0; i < dashCount; i++) {
+      final start = rotation + (i * dashAngle);
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius), start, sweep, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedRingPainter oldDelegate) => oldDelegate.color != color || oldDelegate.rotationT != rotationT;
 }
 
 class _NavIcon extends StatelessWidget {
@@ -269,13 +731,8 @@ class _TelemetryTopBar extends StatelessWidget {
                     icon: mode == PresentationMode.editorial ? Icons.subject_rounded : Icons.layers_rounded,
                     onTap: onToggleMode,
                   ),
-                    const SizedBox(width: AppSpacing.sm),
-                    TelemetryPill(
-                      label: xrayEnabled ? 'x-ray on' : 'x-ray off',
-                      tone: xrayEnabled ? TelemetryTone.validate : TelemetryTone.human,
-                      icon: Icons.grid_on_rounded,
-                      onTap: onToggleXray,
-                    ),
+                  const SizedBox(width: AppSpacing.sm),
+                  _XrayTelemetryPill(enabled: xrayEnabled, onTap: onToggleXray),
                   const Spacer(),
                   IconButton(
                     onPressed: () => onExpandedChanged(!expanded),
@@ -302,6 +759,102 @@ class _TelemetryTopBar extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _XrayTelemetryPill extends StatefulWidget {
+  final bool enabled;
+  final VoidCallback onTap;
+  const _XrayTelemetryPill({required this.enabled, required this.onTap});
+
+  @override
+  State<_XrayTelemetryPill> createState() => _XrayTelemetryPillState();
+}
+
+class _XrayTelemetryPillState extends State<_XrayTelemetryPill> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 980));
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(covariant _XrayTelemetryPill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.enabled != widget.enabled) _sync();
+  }
+
+  void _sync() {
+    if (widget.enabled) {
+      if (!_c.isAnimating) {
+        _c
+          ..stop()
+          ..value = 0
+          ..repeat(reverse: true);
+      }
+    } else {
+      _c.stop();
+      _c.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) {
+        final t = Curves.easeInOutCubic.transform(_c.value);
+        final strokeAlpha = widget.enabled ? (0.55 + (t * 0.35)).clamp(0.0, 1.0) : 0.0;
+        final glowAlpha = widget.enabled ? (0.18 + (t * 0.12)).clamp(0.0, 1.0) : 0.0;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: widget.enabled
+                ? [
+                    BoxShadow(
+                      color: AppColors.accentCyan.withValues(alpha: glowAlpha),
+                      blurRadius: 18,
+                      spreadRadius: 0,
+                    ),
+                  ]
+                : const [],
+          ),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              child!,
+              if (widget.enabled)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    ignoring: true,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: AppColors.accentCyan.withValues(alpha: strokeAlpha), width: 1.2 + (t * 0.8)),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+      child: TelemetryPill(
+        label: widget.enabled ? 'x-ray on' : 'x-ray off',
+        tone: widget.enabled ? TelemetryTone.validate : TelemetryTone.human,
+        icon: Icons.grid_on_rounded,
+        onTap: widget.onTap,
       ),
     );
   }
